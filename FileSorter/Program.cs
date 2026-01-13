@@ -1,10 +1,14 @@
-﻿namespace FileSorter
+﻿using Application;
+using Domain;
+using Infrastructure;
+
+namespace FileSorter
 {
-    internal class Program
+    class Program
     {
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
-            Console.ReadLine();
+            await FileSortingOrchestrator.StartSorting();
         }
     }
 }
