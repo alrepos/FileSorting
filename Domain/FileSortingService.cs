@@ -1,34 +1,29 @@
 ﻿using System.Collections.Concurrent;
 using System.Threading.Channels;
+using HPCsharp;
 using Microsoft.Extensions.Logging;
 
 namespace Domain
 {
-    public class FileSortingService(ILogger logger, long maxMemoryBytes = 1024 * MathData.BytesInMb)
+    public class FileSortingService(ILogger logger, long maxMemoryBytes = MathData.BytesInGb)
     {
         private readonly ILogger _logger = logger;
         private readonly long _maxMemoryBytes = maxMemoryBytes;
 
         private const int StreamBufferSize = 128 * MathData.BytesInKb;
-        private const int MaxChunksInMemory = 3; // chunk amount that can exist in memory at once
-        private const int MinChunkCapacity = 1000;
+        private const short MinRowMemory = 64;
 
         public async Task SortFileAsync(string inputPath, string outputPath)
         {
-            var tempFiles = await SplitAndSortChunksAsync(inputPath);
+            var tempFiles = await CreateChunksAsync(inputPath);
             await MergeChunksAsync(tempFiles, outputPath);
-
-            foreach (var file in tempFiles)
-            {
-                if (File.Exists(file))
-                {
-                    File.Delete(file);
-                }
-            }
+            DeleteChunks(tempFiles);
         }
 
-        private async Task<List<string>> SplitAndSortChunksAsync(string inputPath)
+        private async Task<string[]> CreateChunksAsync(string inputPath)
         {
+            _logger.LogInformation($"Started creating chunks...");
+
             var tempFiles = new ConcurrentBag<string>();
 
             var chunksChannel = Channel.CreateBounded<List<RowEntity>>(new BoundedChannelOptions(capacity: 1)
@@ -43,17 +38,26 @@ namespace Domain
 
             await consumerTask;
 
+            _logger.LogInformation($"Completed creating of {tempFiles.Count} chunks");
+            
             return [.. tempFiles];
         }
 
         private async Task SplitFileToChunks(string inputPath, ChannelWriter<List<RowEntity>> chunksWriter)
         {
-            var currentChunk = new List<RowEntity>(MinChunkCapacity);
+            const short maxChunksInMemory = 3; // chunk amount that can exist in memory at once
+            const short memoryCheckStep = 10_000;
+            const short averageRowTextLength = 55;
+            const float reservedCapacityMultiplier = 1.1f;
+
+            int averageRowBytes = GetAverageRowBytes(averageRowTextLength);
+            long maxChunkBytes = _maxMemoryBytes / maxChunksInMemory;
+            int averageChunkCapacity = (int)(maxChunkBytes / averageRowBytes * reservedCapacityMultiplier);
+            var currentChunk = new List<RowEntity>(averageChunkCapacity);
+
             long currentChunkBytes = 0;
             string? line;
             long lineCounter = 0;
-            int maxChunkBytes = (int)(_maxMemoryBytes / MaxChunksInMemory);
-            const int minLineMemory = 50;
 
             FileStreamOptions readerOptions = new()
             {
@@ -70,20 +74,20 @@ namespace Domain
                     RowEntity convertedRow = ConvertLineToRow(line);
                     currentChunk.Add(convertedRow);
 
-                    int currentLineBytes = (line.Length * 2) + minLineMemory;
-                    currentChunkBytes += currentLineBytes;
+                    int currentRowBytes = GetAverageRowBytes(convertedRow.Text.Length);
+                    currentChunkBytes += currentRowBytes;
 
                     lineCounter++;
 
-                    if (lineCounter % MinChunkCapacity == 0)
+                    if (lineCounter % memoryCheckStep == 0)
                     {
                         if (currentChunkBytes >= maxChunkBytes || IsUsedMemoryHigh())
                         {
-                            //_logger.LogDebug($"Used memory: {GC.GetTotalMemory(false) / MathData.BytesInMb} MB");
+                            //_logger.LogDebug($"Used memory: {GetUsedHeapMemory() / MathData.BytesInMb} MB");
 
                             await chunksWriter.WriteAsync(currentChunk);
 
-                            currentChunk = new List<RowEntity>(MinChunkCapacity);
+                            currentChunk = new List<RowEntity>(averageChunkCapacity);
                             currentChunkBytes = 0;
                         }
                     }
@@ -101,24 +105,19 @@ namespace Domain
 
         private async Task SortAndWriteChunks(ConcurrentBag<string> tempFiles, ChannelReader<List<RowEntity>> chunksReader)
         {
-            _logger.LogInformation($"Started sorting and generating chunks...");
-            var rowComparer = new RowEntityComparer();
-            int generatedChunks = 0;
-
             await foreach (var chunk in chunksReader.ReadAllAsync())
             {
-                //_logger.LogDebug($"Used memory: {GC.GetTotalMemory(false) / MathData.BytesInMb} MB");
+                //_logger.LogDebug($"Used memory: {GetUsedHeapMemory() / MathData.BytesInMb} MB");
 
                 var tempFile = Path.GetTempFileName();
                 tempFiles.Add(tempFile);
 
                 RowEntity[] chunkArray = [.. chunk];
-                Array.Sort(chunkArray);
+                chunkArray.SortMergePar(); // few times faster than Array.Sort or .AsParallel().OrderBy
 
                 await WriteChunkToFileAsync(chunkArray, tempFile);
 
-                generatedChunks++;
-                _logger.LogDebug($"Generated chunk #{generatedChunks} with {chunkArray.Length} items...");
+                _logger.LogDebug($"Created chunk #{tempFiles.Count} with {chunkArray.Length} items...");
 
                 GC.Collect(); // forced GC to decrease memory usage faster
             }
@@ -126,19 +125,29 @@ namespace Domain
 
         private bool IsUsedMemoryHigh()
         {
-            return GC.GetTotalMemory(false) >= _maxMemoryBytes;
+            return GetUsedHeapMemory() >= _maxMemoryBytes;
         }
 
-        private async Task MergeChunksAsync(List<string> tempFiles, string outputPath)
+        private static long GetUsedHeapMemory()
         {
-            _logger.LogInformation($"Started merging {tempFiles.Count} chunks...");
+            return GC.GetTotalMemory(false);
+        }
+
+        private static int GetAverageRowBytes(int rowLength)
+        {
+            return (rowLength * 2) + sizeof(long) + MinRowMemory;
+        }
+
+        private async Task MergeChunksAsync(string[] tempFiles, string outputPath)
+        {
+            _logger.LogInformation($"Started merging of {tempFiles.Length} chunks...");
 
             var orderedQueue = new PriorityQueue<(RowEntity Row, int FileIndex), RowEntity>(new RowEntityComparer());
-            var readers = new StreamReader[tempFiles.Count];
+            var readers = new StreamReader[tempFiles.Length];
 
             try
             {
-                for (int i = 0; i < tempFiles.Count; i++)
+                for (int i = 0; i < tempFiles.Length; i++)
                 {
                     var readerOptions = new FileStreamOptions() {
                         Mode = FileMode.Open,
@@ -177,7 +186,7 @@ namespace Domain
                 }
             }
 
-            _logger.LogInformation($"Completed merging chunks. Result saved to {outputPath}");
+            _logger.LogInformation($"Completed merging of chunks. Result saved to {outputPath}");
         }
 
         private static async Task WriteChunkToFileAsync(IEnumerable<RowEntity> chunk, string filePath)
@@ -186,6 +195,17 @@ namespace Domain
             foreach (RowEntity row in chunk)
             {
                 await writer.WriteLineAsync(row.ToString());
+            }
+        }
+
+        private static void DeleteChunks(string[] tempFiles)
+        {
+            foreach (var file in tempFiles)
+            {
+                if (File.Exists(file))
+                {
+                    File.Delete(file);
+                }
             }
         }
 
