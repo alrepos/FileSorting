@@ -1,17 +1,11 @@
 ﻿
 namespace Domain
 {
-    public readonly struct RowEntity : IComparable<RowEntity>
+    public readonly struct RowEntity(long number, string text) : IComparable<RowEntity>
     {
-        public long Number { get; }
+        public long Number { get; } = number;
 
-        public string Text { get; }
-
-        public RowEntity(long number, string text)
-        {
-            Number = number;
-            Text = text;
-        }
+        public string Text { get; } = text;
 
         public int CompareTo(RowEntity other)
         {
