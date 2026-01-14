@@ -23,6 +23,26 @@ namespace Domain
 
         public override string ToString() => $"{Number}{FileGeneratingService.FileRowSeparator}{Text}";
 
+        public static RowEntity GetRowFromLine(string line)
+        {
+            const string separatorValue = FileGeneratingService.FileRowSeparator;
+            int separatorIndex = line.IndexOf(separatorValue);
+
+            if (separatorIndex == -1)
+            {
+                return new RowEntity(0, line); // to handle rows without correct separator
+            }
+
+            ReadOnlySpan<char> numSpan = line.AsSpan(0, separatorIndex);
+            long number = long.Parse(numSpan);
+
+            int textIndex = separatorIndex + separatorValue.Length;
+            bool isWithText = textIndex < line.Length;
+            string text = isWithText ? line[textIndex..] : string.Empty;
+
+            return new RowEntity(number, text);
+        }
+
         public static int GetRowBytes(int rowTextLength)
         {
             return (rowTextLength * 2) + sizeof(long) + MinRowMemory;

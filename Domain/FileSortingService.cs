@@ -70,7 +70,7 @@ namespace Domain
 
                 while ((line = await reader.ReadLineAsync()) != null)
                 {
-                    RowEntity convertedRow = ConvertLineToRow(line);
+                    RowEntity convertedRow = RowEntity.GetRowFromLine(line);
                     currentChunk.Add(convertedRow);
 
                     int currentRowBytes = convertedRow.GetRowBytes();
@@ -152,7 +152,7 @@ namespace Domain
                     string? line = await readers[i].ReadLineAsync();
                     if (line != null)
                     {
-                        RowEntity row = ConvertLineToRow(line);
+                        RowEntity row = RowEntity.GetRowFromLine(line);
                         orderedQueue.Enqueue((row, i), row);
                     }
                 }
@@ -166,7 +166,7 @@ namespace Domain
                     string? nextLine = await readers[fileIndex].ReadLineAsync();
                     if (nextLine != null)
                     {
-                        RowEntity nextRow = ConvertLineToRow(nextLine);
+                        RowEntity nextRow = RowEntity.GetRowFromLine(nextLine);
                         orderedQueue.Enqueue((nextRow, fileIndex), nextRow);
                     }
                 }
@@ -200,26 +200,6 @@ namespace Domain
                     File.Delete(file);
                 }
             }
-        }
-
-        private static RowEntity ConvertLineToRow(string line)
-        {
-            const string separatorValue = FileGeneratingService.FileRowSeparator;
-            int separatorIndex = line.IndexOf(separatorValue);
-
-            if (separatorIndex == -1)
-            {
-                return new RowEntity(0, line); // to handle rows without correct separator
-            }
-
-            ReadOnlySpan<char> numSpan = line.AsSpan(0, separatorIndex);
-            long number = long.Parse(numSpan);
-
-            int textIndex = separatorIndex + separatorValue.Length;
-            bool isWithText = textIndex < line.Length;
-            string text = isWithText ? line.Substring(textIndex) : string.Empty;
-
-            return new RowEntity(number, text);
         }
     }
 }
