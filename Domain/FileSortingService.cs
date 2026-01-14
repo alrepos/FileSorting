@@ -26,7 +26,7 @@ namespace Domain
 
             var tempFiles = new ConcurrentBag<string>();
 
-            var chunksChannel = Channel.CreateBounded<List<RowEntity>>(new BoundedChannelOptions(capacity: 1)
+            var chunksChannel = Channel.CreateBounded<RowEntity[]>(new BoundedChannelOptions(capacity: 1)
             {
                 SingleWriter = true,
                 SingleReader = true
@@ -43,7 +43,7 @@ namespace Domain
             return [.. tempFiles];
         }
 
-        private async Task SplitFileToChunks(string inputPath, ChannelWriter<List<RowEntity>> chunksWriter)
+        private async Task SplitFileToChunks(string inputPath, ChannelWriter<RowEntity[]> chunksWriter)
         {
             const short maxChunksInMemory = 3; // chunk amount that can exist in memory at once
             const short memoryCheckStep = 10_000;
@@ -85,9 +85,9 @@ namespace Domain
                         {
                             //_logger.LogDebug($"Used memory: {GetUsedHeapMemory() / MathData.BytesInMb} MB");
 
-                            await chunksWriter.WriteAsync(currentChunk);
+                            await chunksWriter.WriteAsync([.. currentChunk]);
 
-                            currentChunk = new List<RowEntity>(averageChunkCapacity);
+                            currentChunk.Clear();
                             currentChunkBytes = 0;
                         }
                     }
@@ -97,22 +97,21 @@ namespace Domain
             // push remaining data
             if (currentChunk.Count > 0)
             {
-                await chunksWriter.WriteAsync(currentChunk);
+                await chunksWriter.WriteAsync([.. currentChunk]);
             }
 
             chunksWriter.Complete();
         }
 
-        private async Task SortAndWriteChunks(ConcurrentBag<string> tempFiles, ChannelReader<List<RowEntity>> chunksReader)
+        private async Task SortAndWriteChunks(ConcurrentBag<string> tempFiles, ChannelReader<RowEntity[]> chunksReader)
         {
-            await foreach (var chunk in chunksReader.ReadAllAsync())
+            await foreach (RowEntity[] chunkArray in chunksReader.ReadAllAsync())
             {
                 //_logger.LogDebug($"Used memory: {GetUsedHeapMemory() / MathData.BytesInMb} MB");
 
                 var tempFile = Path.GetTempFileName();
                 tempFiles.Add(tempFile);
 
-                RowEntity[] chunkArray = [.. chunk];
                 chunkArray.SortMergePar(); // few times faster than Array.Sort or .AsParallel().OrderBy
 
                 await WriteChunkToFileAsync(chunkArray, tempFile);
