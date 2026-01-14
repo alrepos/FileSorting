@@ -8,6 +8,14 @@ namespace Domain
 
         public const string FileRowSeparator = ". ";
 
+        private const short MinStringLength = 10;
+        private const short MaxStringLength = 100;
+
+        public static short GetAverageStringLength()
+        {
+            return MinStringLength + ((MaxStringLength - MinStringLength) / 2);
+        }
+
         public void GenerateFileBySize(double sizeInGb, string? path = null)
         {
             string filePath = string.IsNullOrWhiteSpace(path) ? FilePathService.GetDefaultGeneratedFilePath() : path;
@@ -64,7 +72,7 @@ namespace Domain
 
             for (int i = 0; i < poolSize; i++)
             {
-                int stringLength = random.Next(10, 100);
+                int stringLength = random.Next(MinStringLength, MaxStringLength);
                 var stringChars = new char[stringLength];
 
                 for (int j = 0; j < stringLength; j++)

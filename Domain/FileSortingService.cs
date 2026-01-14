@@ -46,9 +46,9 @@ namespace Domain
         {
             const short maxChunksInMemory = 3; // chunk amount that can exist in memory at once
             const short memoryCheckStep = 10_000;
-            const short averageRowTextLength = 55;
             const float reservedCapacityMultiplier = 1.1f;
 
+            short averageRowTextLength = FileGeneratingService.GetAverageStringLength();
             int averageRowBytes = RowEntity.GetRowBytes(averageRowTextLength);
             long maxChunkBytes = _maxMemoryBytes / maxChunksInMemory;
             int averageChunkCapacity = (int)(maxChunkBytes / averageRowBytes * reservedCapacityMultiplier);
