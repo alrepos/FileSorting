@@ -7,6 +7,8 @@ namespace Domain
 
         public string Text { get; } = text;
 
+        private const short MinRowMemory = 64;
+
         public int CompareTo(RowEntity other)
         {
             int comparisonResult = string.Compare(Text, other.Text, StringComparison.Ordinal); // compare by string part (alphabetically)
@@ -20,5 +22,15 @@ namespace Domain
         }
 
         public override string ToString() => $"{Number}{FileGeneratingService.FileRowSeparator}{Text}";
+
+        public static int GetRowBytes(int rowTextLength)
+        {
+            return (rowTextLength * 2) + sizeof(long) + MinRowMemory;
+        }
+
+        public int GetRowBytes()
+        {
+            return GetRowBytes(Text.Length);
+        }
     }
 }

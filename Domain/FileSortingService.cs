@@ -11,7 +11,6 @@ namespace Domain
         private readonly long _maxMemoryBytes = maxMemoryBytes;
 
         private const int StreamBufferSize = 128 * MathData.BytesInKb;
-        private const short MinRowMemory = 64;
 
         public async Task SortFileAsync(string inputPath, string outputPath)
         {
@@ -50,7 +49,7 @@ namespace Domain
             const short averageRowTextLength = 55;
             const float reservedCapacityMultiplier = 1.1f;
 
-            int averageRowBytes = GetAverageRowBytes(averageRowTextLength);
+            int averageRowBytes = RowEntity.GetRowBytes(averageRowTextLength);
             long maxChunkBytes = _maxMemoryBytes / maxChunksInMemory;
             int averageChunkCapacity = (int)(maxChunkBytes / averageRowBytes * reservedCapacityMultiplier);
             var currentChunk = new List<RowEntity>(averageChunkCapacity);
@@ -74,7 +73,7 @@ namespace Domain
                     RowEntity convertedRow = ConvertLineToRow(line);
                     currentChunk.Add(convertedRow);
 
-                    int currentRowBytes = GetAverageRowBytes(convertedRow.Text.Length);
+                    int currentRowBytes = convertedRow.GetRowBytes();
                     currentChunkBytes += currentRowBytes;
 
                     lineCounter++;
@@ -130,11 +129,6 @@ namespace Domain
         private static long GetUsedHeapMemory()
         {
             return GC.GetTotalMemory(false);
-        }
-
-        private static int GetAverageRowBytes(int rowLength)
-        {
-            return (rowLength * 2) + sizeof(long) + MinRowMemory;
         }
 
         private async Task MergeChunksAsync(string[] tempFiles, string outputPath)
