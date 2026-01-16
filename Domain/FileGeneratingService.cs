@@ -8,6 +8,8 @@ namespace Domain
 
         public const string FileRowSeparator = ". ";
 
+        private const double DefaultFileSizeInGb = 0.3;
+
         private const short MinStringLength = 10;
         private const short MaxStringLength = 100;
 
@@ -16,11 +18,14 @@ namespace Domain
             return MinStringLength + ((MaxStringLength - MinStringLength) / 2);
         }
 
-        public void GenerateFileBySize(double sizeInGb, string? path = null)
+        public void GenerateFileBySize(double? sizeInGb = null, string? inputPath = null)
         {
-            string filePath = string.IsNullOrWhiteSpace(path) ? FilePathService.GetDefaultGeneratedFilePath() : path;
+            sizeInGb ??= DefaultFileSizeInGb;
 
-            _logger.LogInformation($"Started generating of {sizeInGb} GB file at {filePath} ...");
+            inputPath = string.IsNullOrWhiteSpace(inputPath) ? 
+                FilePathService.GetDefaultInputFilePath() : inputPath;
+
+            _logger.LogInformation($"Started generating of {sizeInGb} GB file at {inputPath} ...");
 
             var random = new Random();
 
@@ -31,7 +36,7 @@ namespace Domain
             int loggedGb = 0;
 
             const int bufferSize = 128 * MathData.BytesInKb;
-            using var writer = new StreamWriter(filePath, false, System.Text.Encoding.UTF8, bufferSize);
+            using var writer = new StreamWriter(inputPath, false, System.Text.Encoding.UTF8, bufferSize);
 
             while (currentBytes < targetBytes)
             {

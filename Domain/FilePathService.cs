@@ -4,12 +4,12 @@ namespace Domain
 {
     public static class FilePathService
     {
-        public static string GetDefaultGeneratedFilePath()
+        public static string GetDefaultInputFilePath()
         {
             return GetDefaultFilePath("generated_file.txt");
         }
 
-        public static string GetDefaultSortedFilePath()
+        public static string GetDefaultOutputFilePath()
         {
             return GetDefaultFilePath("sorted_file.txt");
         }

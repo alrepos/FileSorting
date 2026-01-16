@@ -6,23 +6,25 @@ namespace Application
 {
     public static class FileSortingOrchestrator
     {
-        public static async Task StartSorting()
+        public static async Task StartSorting(double? sizeInGb = null, string? inputPath = null, string? outputPath = null)
         {
             var consoleLogger = new ConsoleLogger();
 
-            string generatedFile = FilePathService.GetDefaultGeneratedFilePath();
+            inputPath = string.IsNullOrWhiteSpace(inputPath) ?
+                FilePathService.GetDefaultInputFilePath() : inputPath;
 
-            if (!File.Exists(generatedFile))
+            if (!File.Exists(inputPath))
             {
                 var fileGeneratingService = new FileGeneratingService(consoleLogger);
 
-                fileGeneratingService.GenerateFileBySize(sizeInGb: 0.3);
+                fileGeneratingService.GenerateFileBySize(sizeInGb, inputPath);
             }
 
-            string sortedFile = FilePathService.GetDefaultSortedFilePath();
+            outputPath = string.IsNullOrWhiteSpace(outputPath) ?
+                FilePathService.GetDefaultOutputFilePath() : outputPath;
 
             var sorter = new FileSortingService(consoleLogger);
-            await sorter.SortFileAsync(generatedFile, sortedFile);
+            await sorter.SortFileAsync(inputPath, outputPath);
         }
     }
 }

@@ -11,6 +11,7 @@ namespace Domain
         private readonly long _maxMemoryBytes = maxMemoryBytes;
 
         private const int StreamBufferSize = 128 * MathData.BytesInKb;
+        private const int ChunksChannelCapacity = 3;
 
         public async Task SortFileAsync(string inputPath, string outputPath)
         {
@@ -25,7 +26,7 @@ namespace Domain
 
             var tempFiles = new ConcurrentBag<string>();
 
-            var chunksChannel = Channel.CreateBounded<RowEntity[]>(new BoundedChannelOptions(capacity: 1)
+            var chunksChannel = Channel.CreateBounded<RowEntity[]>(new BoundedChannelOptions(ChunksChannelCapacity)
             {
                 SingleWriter = true,
                 SingleReader = true
@@ -44,7 +45,8 @@ namespace Domain
 
         private async Task SplitFileToChunks(string inputPath, ChannelWriter<RowEntity[]> chunksWriter)
         {
-            const short maxChunksInMemory = 3; // chunk amount that can exist in memory at once
+            const short chunksInProgress = 2;
+            const short maxChunksInMemory = ChunksChannelCapacity + chunksInProgress; // chunks amount that can exist in memory at once
             const short memoryCheckStep = 10_000;
             const float reservedCapacityMultiplier = 1.1f;
 
@@ -111,7 +113,7 @@ namespace Domain
                 var tempFile = Path.GetTempFileName();
                 tempFiles.Add(tempFile);
 
-                chunkArray.SortMergePar(); // few times faster than Array.Sort or .AsParallel().OrderBy
+                chunkArray.SortMergeInPlaceAdaptivePar(); // faster than Array.Sort or .AsParallel().OrderBy
 
                 await WriteChunkToFileAsync(chunkArray, tempFile);
 
