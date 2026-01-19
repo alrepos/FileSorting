@@ -17,7 +17,7 @@ namespace BenchmarkSuite
         [Benchmark]
         public void GenerateDefaultFile()
         {
-            FileGeneratingOrchestrator.StartGenerating(); ;
+            FileGeneratingOrchestrator.StartGenerating();
         }
 
         [Benchmark]
