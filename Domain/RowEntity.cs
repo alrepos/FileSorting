@@ -1,5 +1,4 @@
-﻿
-namespace Domain
+﻿namespace Domain
 {
     public readonly struct RowEntity(long number, string text) : IComparable<RowEntity>
     {
