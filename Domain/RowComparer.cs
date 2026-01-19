@@ -1,7 +1,6 @@
-﻿
-namespace Domain
+﻿namespace Domain
 {
-    public class RowEntityComparer : IComparer<RowEntity>
+    public class RowComparer : IComparer<RowEntity>
     {
         public int Compare(RowEntity x, RowEntity y)
         {

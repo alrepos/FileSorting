@@ -8,9 +8,9 @@ namespace Application
         public static void StartGenerating(double? sizeInGb = null, string? inputPath = null)
         {
             var consoleLogger = new ConsoleLogger();
-            var fileGeneratingService = new FileGeneratingService(consoleLogger);
+            var generator = new FileGeneratingService(consoleLogger);
 
-            fileGeneratingService.GenerateFileBySize(sizeInGb, inputPath);
+            generator.GenerateFileBySize(sizeInGb, inputPath);
         }
     }
 }

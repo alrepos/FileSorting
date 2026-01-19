@@ -171,7 +171,8 @@ namespace Domain
             {
                 const int logProgressStep = 2_000_000;
 
-                var orderedQueue = new PriorityQueue<(RowEntity Row, int FileIndex), RowEntity>(new RowEntityComparer());
+                var rowComparer = new RowComparer();
+                var orderedQueue = new PriorityQueue<(RowEntity Row, int FileIndex), RowEntity>(rowComparer);
                 var readers = new StreamReader[tempFiles.Length];
                 long linesCount = 0;
             

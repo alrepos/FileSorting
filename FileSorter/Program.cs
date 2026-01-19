@@ -1,6 +1,4 @@
 ﻿using Application;
-using Domain;
-using Infrastructure;
 
 namespace FileSorter
 {

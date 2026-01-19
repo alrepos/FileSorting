@@ -14,12 +14,13 @@ namespace Application
 
             var fileInfo = new FileInfo(inputPath);
 
-            // generate file if it does not exist, or its size is less than parameter value
-            if (!fileInfo.Exists || (sizeInGb != null && fileInfo.Length < sizeInGb * MathData.BytesInGb))
-            {
-                var fileGeneratingService = new FileGeneratingService(consoleLogger);
+            bool isNeededToGenerate = !fileInfo.Exists || 
+                (sizeInGb != null && fileInfo.Length < sizeInGb * MathData.BytesInGb);
 
-                fileGeneratingService.GenerateFileBySize(sizeInGb, inputPath);
+            if (isNeededToGenerate)
+            {
+                var generator = new FileGeneratingService(consoleLogger);
+                generator.GenerateFileBySize(sizeInGb, inputPath);
             }
 
             outputPath = string.IsNullOrWhiteSpace(outputPath) ?
