@@ -153,58 +153,75 @@ namespace Domain
         {
             _logger.LogInformation($"Started merging of {tempFiles.Length} chunks...");
 
-            const int logProgressStep = 2_000_000;
-
-            var orderedQueue = new PriorityQueue<(RowEntity Row, int FileIndex), RowEntity>(new RowEntityComparer());
-            var readers = new StreamReader[tempFiles.Length];
-            long linesCount = 0;
-            
-            try
+            if (tempFiles.Length == 0)
             {
-                for (int i = 0; i < tempFiles.Length; i++)
-                {
-                    var readerOptions = new FileStreamOptions() {
-                        Mode = FileMode.Open,
-                        Access = FileAccess.Read,
-                        BufferSize = StreamBufferSize
-                    };
-
-                    readers[i] = new StreamReader(tempFiles[i], readerOptions);
-
-                    string? line = await readers[i].ReadLineAsync();
-                    if (line != null)
-                    {
-                        RowEntity row = RowEntity.GetRowFromLine(line);
-                        orderedQueue.Enqueue((row, i), row);
-                    }
-                }
-
-                using var writer = new StreamWriter(outputPath, append: false, Encoding.UTF8, StreamBufferSize);
-                while (orderedQueue.Count > 0)
-                {
-                    var (comparedRow, fileIndex) = orderedQueue.Dequeue();
-                    writer.WriteLine(comparedRow.ToString());
-                    linesCount++;
-
-                    if (linesCount % logProgressStep == 0)
-                    {
-                        double progress = linesCount / (double)totalRowsCount * 100;
-                        _logger.LogDebug($"Merged {progress:F2} % of lines...");
-                    }
-
-                    string? nextLine = await readers[fileIndex].ReadLineAsync();
-                    if (nextLine != null)
-                    {
-                        RowEntity nextRow = RowEntity.GetRowFromLine(nextLine);
-                        orderedQueue.Enqueue((nextRow, fileIndex), nextRow);
-                    }
-                }
+                _logger.LogError($"There is no files to merge!");
+                return;
             }
-            finally
+            else if (tempFiles.Length == 1)
             {
-                foreach (var r in readers) 
-                { 
-                    r?.Dispose();
+                if (File.Exists(outputPath))
+                {
+                    File.Delete(outputPath);
+                }
+
+                File.Move(tempFiles[0], outputPath);
+            }
+            else
+            {
+                const int logProgressStep = 2_000_000;
+
+                var orderedQueue = new PriorityQueue<(RowEntity Row, int FileIndex), RowEntity>(new RowEntityComparer());
+                var readers = new StreamReader[tempFiles.Length];
+                long linesCount = 0;
+            
+                try
+                {
+                    for (int i = 0; i < tempFiles.Length; i++)
+                    {
+                        var readerOptions = new FileStreamOptions() {
+                            Mode = FileMode.Open,
+                            Access = FileAccess.Read,
+                            BufferSize = StreamBufferSize
+                        };
+
+                        readers[i] = new StreamReader(tempFiles[i], readerOptions);
+
+                        string? line = await readers[i].ReadLineAsync();
+                        if (line != null)
+                        {
+                            RowEntity row = RowEntity.GetRowFromLine(line);
+                            orderedQueue.Enqueue((row, i), row);
+                        }
+                    }
+
+                    using var writer = new StreamWriter(outputPath, append: false, Encoding.UTF8, StreamBufferSize);
+                    while (orderedQueue.Count > 0)
+                    {
+                        var (comparedRow, fileIndex) = orderedQueue.Dequeue();
+                        writer.WriteLine(comparedRow.ToString());
+                        linesCount++;
+
+                        if (linesCount % logProgressStep == 0)
+                        {
+                            double progress = linesCount / (double)totalRowsCount * 100;
+                            _logger.LogDebug($"Merged {progress:F2} % of lines...");
+                        }
+
+                        string? nextLine = await readers[fileIndex].ReadLineAsync();
+                        if (nextLine != null)
+                        {
+                            RowEntity nextRow = RowEntity.GetRowFromLine(nextLine);
+                            orderedQueue.Enqueue((nextRow, fileIndex), nextRow);
+                        }
+                    }
+                }
+                finally
+                {
+                    foreach (var r in readers) 
+                    { 
+                        r?.Dispose();
+                    }
                 }
             }
 
