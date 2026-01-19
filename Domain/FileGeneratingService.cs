@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace Domain
 {
@@ -36,7 +37,7 @@ namespace Domain
             int loggedGb = 0;
 
             const int bufferSize = 128 * MathData.BytesInKb;
-            using var writer = new StreamWriter(inputPath, false, System.Text.Encoding.UTF8, bufferSize);
+            using var writer = new StreamWriter(inputPath, append: false, Encoding.UTF8, bufferSize);
 
             while (currentBytes < targetBytes)
             {

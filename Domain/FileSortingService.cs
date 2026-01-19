@@ -1,46 +1,47 @@
 ﻿using System.Collections.Concurrent;
 using System.Threading.Channels;
+using System.Text;
 using HPCsharp;
 using Microsoft.Extensions.Logging;
 
 namespace Domain
 {
-    public class FileSortingService(ILogger logger, long maxMemoryBytes = MathData.BytesInGb)
+    public class FileSortingService(ILogger logger, long maxMemoryBytes = 2L * MathData.BytesInGb)
     {
         private readonly ILogger _logger = logger;
         private readonly long _maxMemoryBytes = maxMemoryBytes;
 
         private const int StreamBufferSize = 128 * MathData.BytesInKb;
-        private const int ChunksChannelCapacity = 3;
+        private const int ChunksChannelCapacity = 8;
 
         public async Task SortFileAsync(string inputPath, string outputPath)
         {
-            var tempFiles = await CreateChunksAsync(inputPath);
-            await MergeChunksAsync(tempFiles, outputPath);
-            DeleteChunks(tempFiles);
+            var chunkFiles = await CreateChunksAsync(inputPath);
+            await MergeChunksAsync(chunkFiles, outputPath);
+            DeleteChunks(chunkFiles);
         }
 
         private async Task<string[]> CreateChunksAsync(string inputPath)
         {
             _logger.LogInformation($"Started creating chunks...");
 
-            var tempFiles = new ConcurrentBag<string>();
+            var chunkFiles = new ConcurrentBag<string>();
 
             var chunksChannel = Channel.CreateBounded<RowEntity[]>(new BoundedChannelOptions(ChunksChannelCapacity)
             {
                 SingleWriter = true,
-                SingleReader = true
+                SingleReader = false
             });
 
-            Task consumerTask = SortAndWriteChunks(tempFiles, chunksChannel.Reader); // consumer of chunks in memory
+            Task consumerTask = SortAndWriteChunks(inputPath, chunksChannel.Reader, chunkFiles); // consumer of chunks in memory
 
             await SplitFileToChunks(inputPath, chunksChannel.Writer); // producer of chunks in memory
 
             await consumerTask;
 
-            _logger.LogInformation($"Completed creating of {tempFiles.Count} chunks");
+            _logger.LogInformation($"Completed creating of {chunkFiles.Count} chunks");
             
-            return [.. tempFiles];
+            return [.. chunkFiles];
         }
 
         private async Task SplitFileToChunks(string inputPath, ChannelWriter<RowEntity[]> chunksWriter)
@@ -60,7 +61,7 @@ namespace Domain
             string? line;
             long lineCounter = 0;
 
-            FileStreamOptions readerOptions = new()
+            var readerOptions = new FileStreamOptions()
             {
                 Mode = FileMode.Open,
                 Access = FileAccess.Read,
@@ -104,28 +105,37 @@ namespace Domain
             chunksWriter.Complete();
         }
 
-        private async Task SortAndWriteChunks(ConcurrentBag<string> tempFiles, ChannelReader<RowEntity[]> chunksReader)
+        private async Task SortAndWriteChunks(string inputPath, ChannelReader<RowEntity[]> chunksReader, 
+            ConcurrentBag<string> chunkFiles)
         {
+            const string chunksFolderName = "sorted_chunks";
+            string chunksFolderPath = FilePathService.GetOrCreateNewFolderPath(chunksFolderName, inputPath);
+
             await foreach (RowEntity[] chunkArray in chunksReader.ReadAllAsync())
             {
                 //_logger.LogDebug($"Used memory: {GetUsedHeapMemory() / MathData.BytesInMb} MB");
 
-                var tempFile = Path.GetTempFileName();
-                tempFiles.Add(tempFile);
+                string chunkFile = FilePathService.GetNewFilePath(chunksFolderPath);
+                chunkFiles.Add(chunkFile);
 
                 chunkArray.SortMergeInPlaceAdaptivePar(); // faster than Array.Sort or .AsParallel().OrderBy
 
-                await WriteChunkToFileAsync(chunkArray, tempFile);
+                await WriteChunkToFileAsync(chunkArray, chunkFile);
 
-                _logger.LogDebug($"Created chunk #{tempFiles.Count} with {chunkArray.Length} items...");
-
-                GC.Collect(); // forced GC to decrease memory usage faster
+                _logger.LogDebug($"Created chunk #{chunkFiles.Count} with {chunkArray.Length} items...");
             }
         }
 
         private bool IsUsedMemoryHigh()
         {
-            return GetUsedHeapMemory() >= _maxMemoryBytes;
+            bool isHigh = GetUsedHeapMemory() >= _maxMemoryBytes;
+
+            if (isHigh)
+            {
+                GC.Collect(); // forced GC
+            }
+
+            return isHigh;
         }
 
         private static long GetUsedHeapMemory()
@@ -146,6 +156,7 @@ namespace Domain
                 {
                     var readerOptions = new FileStreamOptions() {
                         Mode = FileMode.Open,
+                        Access = FileAccess.Read,
                         BufferSize = StreamBufferSize
                     };
 
@@ -159,7 +170,7 @@ namespace Domain
                     }
                 }
 
-                using var writer = new StreamWriter(outputPath, false, System.Text.Encoding.UTF8, StreamBufferSize);
+                using var writer = new StreamWriter(outputPath, append: false, Encoding.UTF8, StreamBufferSize);
                 while (orderedQueue.Count > 0)
                 {
                     var (comparedRow, fileIndex) = orderedQueue.Dequeue();
@@ -186,7 +197,7 @@ namespace Domain
 
         private static async Task WriteChunkToFileAsync(IEnumerable<RowEntity> chunk, string filePath)
         {
-            using var writer = new StreamWriter(filePath, false, System.Text.Encoding.UTF8, StreamBufferSize);
+            using var writer = new StreamWriter(filePath, append: false, Encoding.UTF8, StreamBufferSize);
             foreach (RowEntity row in chunk)
             {
                 await writer.WriteLineAsync(row.ToString());

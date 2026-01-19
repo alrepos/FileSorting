@@ -13,7 +13,10 @@ namespace Application
             inputPath = string.IsNullOrWhiteSpace(inputPath) ?
                 FilePathService.GetDefaultInputFilePath() : inputPath;
 
-            if (!File.Exists(inputPath))
+            var fileInfo = new FileInfo(inputPath);
+
+            // generate file if it does not exist, or its size is less than parameter value
+            if (!fileInfo.Exists || (sizeInGb != null && fileInfo.Length < sizeInGb * MathData.BytesInGb))
             {
                 var fileGeneratingService = new FileGeneratingService(consoleLogger);
 
