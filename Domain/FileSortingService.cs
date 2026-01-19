@@ -1,6 +1,6 @@
 ﻿using System.Collections.Concurrent;
-using System.Threading.Channels;
 using System.Text;
+using System.Threading.Channels;
 using HPCsharp;
 using Microsoft.Extensions.Logging;
 
@@ -16,12 +16,12 @@ namespace Domain
 
         public async Task SortFileAsync(string inputPath, string outputPath)
         {
-            var chunkFiles = await CreateChunksAsync(inputPath);
-            await MergeChunksAsync(chunkFiles, outputPath);
+            var (chunkFiles, rowsCount) = await CreateChunksAsync(inputPath);
+            await MergeChunksAsync(chunkFiles, rowsCount, outputPath);
             DeleteChunks(chunkFiles);
         }
 
-        private async Task<string[]> CreateChunksAsync(string inputPath)
+        private async Task<(string[] chunkFiles, long rowsCount)> CreateChunksAsync(string inputPath)
         {
             _logger.LogInformation($"Started creating chunks...");
 
@@ -33,15 +33,15 @@ namespace Domain
                 SingleReader = false
             });
 
-            Task consumerTask = SortAndWriteChunks(inputPath, chunksChannel.Reader, chunkFiles); // consumer of chunks in memory
+            Task<long> consumerTask = SortAndWriteChunks(inputPath, chunksChannel.Reader, chunkFiles); // consumer of chunks in memory
 
             await SplitFileToChunks(inputPath, chunksChannel.Writer); // producer of chunks in memory
 
-            await consumerTask;
+            long rowsCount = await consumerTask;
 
-            _logger.LogInformation($"Completed creating of {chunkFiles.Count} chunks");
+            _logger.LogInformation($"Completed creating of {chunkFiles.Count} chunks with {rowsCount} rows");
             
-            return [.. chunkFiles];
+            return ([.. chunkFiles], rowsCount);
         }
 
         private async Task SplitFileToChunks(string inputPath, ChannelWriter<RowEntity[]> chunksWriter)
@@ -105,11 +105,13 @@ namespace Domain
             chunksWriter.Complete();
         }
 
-        private async Task SortAndWriteChunks(string inputPath, ChannelReader<RowEntity[]> chunksReader, 
+        private async Task<long> SortAndWriteChunks(string inputPath, ChannelReader<RowEntity[]> chunksReader, 
             ConcurrentBag<string> chunkFiles)
         {
             const string chunksFolderName = "sorted_chunks";
             string chunksFolderPath = FilePathService.GetOrCreateNewFolderPath(chunksFolderName, inputPath);
+            
+            long rowsCount = 0;
 
             await foreach (RowEntity[] chunkArray in chunksReader.ReadAllAsync())
             {
@@ -122,8 +124,12 @@ namespace Domain
 
                 await WriteChunkToFileAsync(chunkArray, chunkFile);
 
+                Interlocked.Add(ref rowsCount, chunkArray.Length);
+
                 _logger.LogDebug($"Created chunk #{chunkFiles.Count} with {chunkArray.Length} items...");
             }
+
+            return rowsCount;
         }
 
         private bool IsUsedMemoryHigh()
@@ -143,13 +149,16 @@ namespace Domain
             return GC.GetTotalMemory(false);
         }
 
-        private async Task MergeChunksAsync(string[] tempFiles, string outputPath)
+        private async Task MergeChunksAsync(string[] tempFiles, long totalRowsCount, string outputPath)
         {
             _logger.LogInformation($"Started merging of {tempFiles.Length} chunks...");
 
+            const int logProgressStep = 2_000_000;
+
             var orderedQueue = new PriorityQueue<(RowEntity Row, int FileIndex), RowEntity>(new RowEntityComparer());
             var readers = new StreamReader[tempFiles.Length];
-
+            long linesCount = 0;
+            
             try
             {
                 for (int i = 0; i < tempFiles.Length; i++)
@@ -175,6 +184,13 @@ namespace Domain
                 {
                     var (comparedRow, fileIndex) = orderedQueue.Dequeue();
                     writer.WriteLine(comparedRow.ToString());
+                    linesCount++;
+
+                    if (linesCount % logProgressStep == 0)
+                    {
+                        double progress = linesCount / (double)totalRowsCount * 100;
+                        _logger.LogDebug($"Merged {progress:F2} % of lines...");
+                    }
 
                     string? nextLine = await readers[fileIndex].ReadLineAsync();
                     if (nextLine != null)

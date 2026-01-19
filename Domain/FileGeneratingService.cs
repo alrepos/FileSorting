@@ -21,6 +21,8 @@ namespace Domain
 
         public void GenerateFileBySize(double? sizeInGb = null, string? inputPath = null)
         {
+            const float logStepInGb = 0.5f;
+
             sizeInGb ??= DefaultFileSizeInGb;
 
             inputPath = string.IsNullOrWhiteSpace(inputPath) ? 
@@ -34,7 +36,7 @@ namespace Domain
 
             long targetBytes = (long)(sizeInGb * MathData.BytesInGb);
             long currentBytes = 0;
-            int loggedGb = 0;
+            double loggedGb = logStepInGb;
 
             const int bufferSize = 128 * MathData.BytesInKb;
             using var writer = new StreamWriter(inputPath, append: false, Encoding.UTF8, bufferSize);
@@ -53,13 +55,12 @@ namespace Domain
                 long fileRowSizeInBytes = (fileRow.Length * rowCharSizeInBytes) + newLineSizeInBytes;
                 currentBytes += fileRowSizeInBytes;
 
-                const int logStepInGb = 1;
                 double currentGigabytes = currentBytes / (MathData.BytesInGb * (double)logStepInGb);
                 bool isNeededToLog = currentGigabytes > loggedGb && currentGigabytes < sizeInGb;
 
                 if (isNeededToLog)
                 {
-                    _logger.LogDebug($"Generated {loggedGb} GB / {sizeInGb} GB ...");
+                    _logger.LogDebug($"Generated {loggedGb:F2} GB / {sizeInGb:F2} GB ...");
                     loggedGb += logStepInGb;
                 }
             }

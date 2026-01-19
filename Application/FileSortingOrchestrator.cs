@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using Domain;
+﻿using Domain;
 using Infrastructure;
 
 namespace Application
