@@ -134,14 +134,7 @@ namespace Domain
 
         private bool IsUsedMemoryHigh()
         {
-            bool isHigh = GetUsedHeapMemory() >= _maxMemoryBytes;
-
-            if (isHigh)
-            {
-                GC.Collect(); // forced GC
-            }
-
-            return isHigh;
+            return GetUsedHeapMemory() >= _maxMemoryBytes;
         }
 
         private static long GetUsedHeapMemory()
