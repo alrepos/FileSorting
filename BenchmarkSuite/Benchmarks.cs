@@ -17,13 +17,15 @@ namespace BenchmarkSuite
         [Benchmark]
         public void GenerateDefaultFile()
         {
-            FileGeneratingOrchestrator.StartGenerating();
+            var generatingOrchestrator = new FileGeneratingOrchestrator();
+            generatingOrchestrator.StartGenerating();
         }
 
         [Benchmark]
         public async Task SortDefaultFile()
         {
-            await FileSortingOrchestrator.StartSorting();
+            var sortingOrchestrator = new FileSortingOrchestrator();
+            await sortingOrchestrator.StartSortingAsync();
         }
     }
 }

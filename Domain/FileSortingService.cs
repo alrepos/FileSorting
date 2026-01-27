@@ -33,9 +33,9 @@ namespace Domain
                 SingleReader = false
             });
 
-            Task<long> consumerTask = SortAndWriteChunks(inputPath, chunksChannel.Reader, chunkFiles); // consumer of chunks in memory
+            Task<long> consumerTask = SortAndWriteChunksAsync(inputPath, chunksChannel.Reader, chunkFiles); // consumer of chunks in memory
 
-            await SplitFileToChunks(inputPath, chunksChannel.Writer); // producer of chunks in memory
+            await SplitFileToChunksAsync(inputPath, chunksChannel.Writer); // producer of chunks in memory
 
             long rowsCount = await consumerTask;
 
@@ -44,7 +44,7 @@ namespace Domain
             return ([.. chunkFiles], rowsCount);
         }
 
-        private async Task SplitFileToChunks(string inputPath, ChannelWriter<RowEntity[]> chunksWriter)
+        private async Task SplitFileToChunksAsync(string inputPath, ChannelWriter<RowEntity[]> chunksWriter)
         {
             const short chunksInProgress = 2;
             const short maxChunksInMemory = ChunksChannelCapacity + chunksInProgress; // chunks amount that can exist in memory at once
@@ -85,8 +85,6 @@ namespace Domain
                     {
                         if (currentChunkBytes >= maxChunkBytes || IsUsedMemoryHigh())
                         {
-                            //_logger.LogDebug($"Used memory: {GetUsedHeapMemory() / MathData.BytesInMb} MB");
-
                             await chunksWriter.WriteAsync([.. currentChunk]);
 
                             currentChunk.Clear();
@@ -105,7 +103,7 @@ namespace Domain
             chunksWriter.Complete();
         }
 
-        private async Task<long> SortAndWriteChunks(string inputPath, ChannelReader<RowEntity[]> chunksReader, 
+        private async Task<long> SortAndWriteChunksAsync(string inputPath, ChannelReader<RowEntity[]> chunksReader, 
             ConcurrentBag<string> chunkFiles)
         {
             const string chunksFolderName = "sorted_chunks";
@@ -115,8 +113,6 @@ namespace Domain
 
             await foreach (RowEntity[] chunkArray in chunksReader.ReadAllAsync())
             {
-                //_logger.LogDebug($"Used memory: {GetUsedHeapMemory() / MathData.BytesInMb} MB");
-
                 string chunkFile = FilePathService.GetNewFilePath(chunksFolderPath);
                 chunkFiles.Add(chunkFile);
 

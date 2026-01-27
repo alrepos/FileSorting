@@ -25,9 +25,11 @@ namespace Tests
         }
 
         [Fact]
-        public async Task FileSorting_IntegrationTest()
+        public async Task FileSorting_IntegrationTestAsync()
         {
             // Arrange
+
+            var sortingOrchestrator = new FileSortingOrchestrator();
 
             string input = Path.GetTempFileName();
             string output = Path.GetTempFileName();
@@ -45,7 +47,7 @@ namespace Tests
 
             await File.WriteAllLinesAsync(input, lines);
 
-            await FileSortingOrchestrator.StartSorting(inputPath: input, outputPath: output);
+            await sortingOrchestrator.StartSortingAsync(inputPath: input, outputPath: output);
 
             string[] result = await File.ReadAllLinesAsync(output);
 

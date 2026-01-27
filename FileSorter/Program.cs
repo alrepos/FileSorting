@@ -6,7 +6,8 @@ namespace FileSorter
     {
         static async Task Main(string[] args)
         {
-            await FileSortingOrchestrator.StartSorting();
+            var sortingOrchestrator = new FileSortingOrchestrator();
+            await sortingOrchestrator.StartSortingAsync();
         }
     }
 }

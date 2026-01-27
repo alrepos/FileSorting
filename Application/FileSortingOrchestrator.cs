@@ -5,7 +5,7 @@ namespace Application
 {
     public static class FileSortingOrchestrator
     {
-        public static async Task StartSorting(double? sizeInGb = null, string? inputPath = null, string? outputPath = null)
+        public async Task StartSortingAsync(double? sizeInGb = null, string? inputPath = null, string? outputPath = null)
         {
             var consoleLogger = new ConsoleLogger();
 

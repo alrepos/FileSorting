@@ -6,7 +6,8 @@ namespace FileGenerator
     {
         static void Main(string[] args)
         {
-            FileGeneratingOrchestrator.StartGenerating();
+            var generatingOrchestrator = new FileGeneratingOrchestrator();
+            generatingOrchestrator.StartGenerating();
         }
     }
 }
