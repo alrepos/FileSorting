@@ -3,14 +3,15 @@ using Infrastructure;
 
 namespace Application
 {
-    public static class FileSortingOrchestrator
+    public class FileSortingOrchestrator
     {
         public async Task StartSortingAsync(double? sizeInGb = null, string? inputPath = null, string? outputPath = null)
         {
             var consoleLogger = new ConsoleLogger();
+            var filePathService = new FilePathService();
 
             inputPath = string.IsNullOrWhiteSpace(inputPath) ?
-                FilePathService.GetDefaultInputFilePath() : inputPath;
+                filePathService.GetDefaultInputFilePath() : inputPath;
 
             var fileInfo = new FileInfo(inputPath);
 
@@ -19,14 +20,14 @@ namespace Application
 
             if (isNeededToGenerate)
             {
-                var generator = new FileGeneratingService(consoleLogger);
+                var generator = new FileGeneratingService(consoleLogger, filePathService);
                 generator.GenerateFileBySize(sizeInGb, inputPath);
             }
 
             outputPath = string.IsNullOrWhiteSpace(outputPath) ?
-                FilePathService.GetDefaultOutputFilePath() : outputPath;
+                filePathService.GetDefaultOutputFilePath() : outputPath;
 
-            var sorter = new FileSortingService(consoleLogger);
+            var sorter = new FileSortingService(consoleLogger, filePathService);
             await sorter.SortFileAsync(inputPath, outputPath);
         }
     }

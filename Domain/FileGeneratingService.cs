@@ -3,9 +3,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Domain
 {
-    public class FileGeneratingService(ILogger logger)
+    public class FileGeneratingService(ILogger logger, FilePathService filePathService)
     {
         private readonly ILogger _logger = logger;
+        private readonly FilePathService _filePathService = filePathService;
 
         public const string FileRowSeparator = ". ";
 
@@ -25,8 +26,8 @@ namespace Domain
 
             sizeInGb ??= DefaultFileSizeInGb;
 
-            inputPath = string.IsNullOrWhiteSpace(inputPath) ? 
-                FilePathService.GetDefaultInputFilePath() : inputPath;
+            inputPath = string.IsNullOrWhiteSpace(inputPath) ?
+                _filePathService.GetDefaultInputFilePath() : inputPath;
 
             _logger.LogInformation($"Started generating of {sizeInGb} GB file at {inputPath} ...");
 

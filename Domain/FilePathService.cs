@@ -1,8 +1,8 @@
 ﻿namespace Domain
 {
-    public static class FilePathService
+    public class FilePathService
     {
-        public static string GetNewFilePath(string? fileFolder = null)
+        public string GetNewFilePath(string? fileFolder = null)
         {
             fileFolder = string.IsNullOrWhiteSpace(fileFolder) ?
                 GetOrCreateDefaultFolderPath() : fileFolder;
@@ -18,7 +18,7 @@
             return filePath;
         }
 
-        public static string GetOrCreateDefaultFolderPath()
+        public string GetOrCreateDefaultFolderPath()
         {
             string appFolder = Environment.GetFolderPath(Environment.SpecialFolder.CommonDocuments);
             string defaultFolder = Path.Combine(appFolder, "FileSorting");
@@ -28,7 +28,7 @@
             return defaultFolder;
         }
 
-        public static string GetOrCreateNewFolderPath(string newFolderName, string? inputPath = null)
+        public string GetOrCreateNewFolderPath(string newFolderName, string? inputPath = null)
         {
 
             string inputFolderPath = Path.GetDirectoryName(inputPath) ?? GetOrCreateDefaultFolderPath();
@@ -39,17 +39,17 @@
             return newFolderPath;
         }
 
-        public static string GetDefaultInputFilePath()
+        public string GetDefaultInputFilePath()
         {
             return GetDefaultFilePath("generated_file.txt");
         }
 
-        public static string GetDefaultOutputFilePath()
+        public string GetDefaultOutputFilePath()
         {
             return GetDefaultFilePath("sorted_file.txt");
         }
 
-        private static string GetDefaultFilePath(string fileName)
+        private string GetDefaultFilePath(string fileName)
         {
             string defaultFolder = GetOrCreateDefaultFolderPath();
 

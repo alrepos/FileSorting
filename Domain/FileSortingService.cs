@@ -6,9 +6,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Domain
 {
-    public class FileSortingService(ILogger logger, long maxMemoryBytes = 2L * MathData.BytesInGb)
+    public class FileSortingService(ILogger logger, FilePathService filePathService, long maxMemoryBytes = 2L * MathData.BytesInGb)
     {
         private readonly ILogger _logger = logger;
+        private readonly FilePathService _filePathService = filePathService;
         private readonly long _maxMemoryBytes = maxMemoryBytes;
 
         private const int StreamBufferSize = 128 * MathData.BytesInKb;
@@ -107,13 +108,13 @@ namespace Domain
             ConcurrentBag<string> chunkFiles)
         {
             const string chunksFolderName = "sorted_chunks";
-            string chunksFolderPath = FilePathService.GetOrCreateNewFolderPath(chunksFolderName, inputPath);
+            string chunksFolderPath = _filePathService.GetOrCreateNewFolderPath(chunksFolderName, inputPath);
             
             long rowsCount = 0;
 
             await foreach (RowEntity[] chunkArray in chunksReader.ReadAllAsync())
             {
-                string chunkFile = FilePathService.GetNewFilePath(chunksFolderPath);
+                string chunkFile = _filePathService.GetNewFilePath(chunksFolderPath);
                 chunkFiles.Add(chunkFile);
 
                 chunkArray.SortMergeInPlaceAdaptivePar(); // faster than Array.Sort or .AsParallel().OrderBy

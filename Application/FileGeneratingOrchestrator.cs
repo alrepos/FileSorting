@@ -3,13 +3,14 @@ using Infrastructure;
 
 namespace Application
 {
-    public static class FileGeneratingOrchestrator
+    public class FileGeneratingOrchestrator
     {
-        public static void StartGenerating(double? sizeInGb = null, string? inputPath = null)
+        public void StartGenerating(double? sizeInGb = null, string? inputPath = null)
         {
             var consoleLogger = new ConsoleLogger();
-            var generator = new FileGeneratingService(consoleLogger);
+            var filePathService = new FilePathService();
 
+            var generator = new FileGeneratingService(consoleLogger, filePathService);
             generator.GenerateFileBySize(sizeInGb, inputPath);
         }
     }
