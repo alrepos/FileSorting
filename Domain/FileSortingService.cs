@@ -13,7 +13,8 @@ namespace Domain
         private readonly long _maxMemoryBytes = maxMemoryBytes;
 
         private const int StreamBufferSize = 128 * MathData.BytesInKb;
-        private const int ChunksChannelCapacity = 8;
+        private const int ChunksChannelCapacity = 4;
+        private const int SortTasksCount = 4;
 
         public async Task SortFileAsync(string inputPath, string outputPath)
         {
@@ -34,11 +35,16 @@ namespace Domain
                 SingleReader = false
             });
 
-            Task<long> consumerTask = SortAndWriteChunksAsync(inputPath, chunksChannel.Reader, chunkFiles); // consumer of chunks in memory
+            var consumerTasks = new Task<long>[SortTasksCount];
+            for (int i = 0; i < SortTasksCount; i++)
+            {
+                consumerTasks[i] = SortAndWriteChunksAsync(inputPath, chunksChannel.Reader, chunkFiles); // consumers of chunks in memory
+            }
 
             await SplitFileToChunksAsync(inputPath, chunksChannel.Writer); // producer of chunks in memory
 
-            long rowsCount = await consumerTask;
+            long[] consumerResults = await Task.WhenAll(consumerTasks);
+            long rowsCount = consumerResults.Sum();
 
             _logger.LogInformation($"Completed creating of {chunkFiles.Count} chunks with {rowsCount} rows");
             
@@ -47,8 +53,8 @@ namespace Domain
 
         private async Task SplitFileToChunksAsync(string inputPath, ChannelWriter<RowEntity[]> chunksWriter)
         {
-            const short chunksInProgress = 2;
-            const short maxChunksInMemory = ChunksChannelCapacity + chunksInProgress; // chunks amount that can exist in memory at once
+            const short splitTasksCount = 1;
+            const short maxChunksInMemory = ChunksChannelCapacity + SortTasksCount + splitTasksCount; // chunks amount that can exist in memory at once
             const short memoryCheckStep = 10_000;
             const float reservedCapacityMultiplier = 1.1f;
 
@@ -116,14 +122,17 @@ namespace Domain
             {
                 string chunkFile = _filePathService.GetNewFilePath(chunksFolderPath);
                 chunkFiles.Add(chunkFile);
+                int chunkNumber = chunkFiles.Count;
+
+                _logger.LogDebug($"Started sorting of chunk #{chunkNumber} with {chunkArray.Length} items...");
 
                 chunkArray.SortMergeInPlaceAdaptivePar(); // faster than Array.Sort or .AsParallel().OrderBy
 
                 await WriteChunkToFileAsync(chunkArray, chunkFile);
 
-                Interlocked.Add(ref rowsCount, chunkArray.Length);
+                rowsCount += chunkArray.Length;
 
-                _logger.LogDebug($"Created chunk #{chunkFiles.Count} with {chunkArray.Length} items...");
+                _logger.LogDebug($"Completed sorting of chunk #{chunkNumber}");
             }
 
             return rowsCount;
