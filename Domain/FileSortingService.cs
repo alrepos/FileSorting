@@ -29,7 +29,7 @@ namespace Domain
 
             var chunkFiles = new ConcurrentBag<string>();
 
-            var chunksChannel = Channel.CreateBounded<RowEntity[]>(new BoundedChannelOptions(ChunksChannelCapacity)
+            var chunksChannel = Channel.CreateBounded<RowValueObject[]>(new BoundedChannelOptions(ChunksChannelCapacity)
             {
                 SingleWriter = true,
                 SingleReader = false
@@ -51,7 +51,7 @@ namespace Domain
             return ([.. chunkFiles], rowsCount);
         }
 
-        private async Task SplitFileToChunksAsync(string inputPath, ChannelWriter<RowEntity[]> chunksWriter)
+        private async Task SplitFileToChunksAsync(string inputPath, ChannelWriter<RowValueObject[]> chunksWriter)
         {
             const short splitTasksCount = 1;
             const short maxChunksInMemory = ChunksChannelCapacity + SortTasksCount + splitTasksCount; // chunks amount that can exist in memory at once
@@ -59,10 +59,10 @@ namespace Domain
             const float reservedCapacityMultiplier = 1.1f;
 
             short averageRowTextLength = FileGeneratingService.GetAverageStringLength();
-            int averageRowBytes = RowEntity.GetRowBytes(averageRowTextLength);
+            int averageRowBytes = RowValueObject.GetRowBytes(averageRowTextLength);
             long maxChunkBytes = _maxMemoryBytes / maxChunksInMemory;
             int averageChunkCapacity = (int)(maxChunkBytes / averageRowBytes * reservedCapacityMultiplier);
-            var currentChunk = new List<RowEntity>(averageChunkCapacity);
+            var currentChunk = new List<RowValueObject>(averageChunkCapacity);
 
             long currentChunkBytes = 0;
             string? line;
@@ -80,7 +80,7 @@ namespace Domain
 
                 while ((line = await reader.ReadLineAsync()) != null)
                 {
-                    RowEntity convertedRow = RowEntity.GetRowFromLine(line);
+                    RowValueObject convertedRow = RowValueObject.GetRowFromLine(line);
                     currentChunk.Add(convertedRow);
 
                     int currentRowBytes = convertedRow.GetRowBytes();
@@ -110,7 +110,7 @@ namespace Domain
             chunksWriter.Complete();
         }
 
-        private async Task<long> SortAndWriteChunksAsync(string inputPath, ChannelReader<RowEntity[]> chunksReader, 
+        private async Task<long> SortAndWriteChunksAsync(string inputPath, ChannelReader<RowValueObject[]> chunksReader, 
             ConcurrentBag<string> chunkFiles)
         {
             const string chunksFolderName = "sorted_chunks";
@@ -118,7 +118,7 @@ namespace Domain
             
             long rowsCount = 0;
 
-            await foreach (RowEntity[] chunkArray in chunksReader.ReadAllAsync())
+            await foreach (RowValueObject[] chunkArray in chunksReader.ReadAllAsync())
             {
                 string chunkFile = _filePathService.GetNewFilePath(chunksFolderPath);
                 chunkFiles.Add(chunkFile);
@@ -171,7 +171,7 @@ namespace Domain
                 const int logProgressStep = 2_000_000;
 
                 var rowComparer = new RowComparer();
-                var orderedQueue = new PriorityQueue<(RowEntity Row, int FileIndex), RowEntity>(rowComparer);
+                var orderedQueue = new PriorityQueue<(RowValueObject Row, int FileIndex), RowValueObject>(rowComparer);
                 var readers = new StreamReader[tempFiles.Length];
                 long linesCount = 0;
             
@@ -190,7 +190,7 @@ namespace Domain
                         string? line = await readers[i].ReadLineAsync();
                         if (line != null)
                         {
-                            RowEntity row = RowEntity.GetRowFromLine(line);
+                            RowValueObject row = RowValueObject.GetRowFromLine(line);
                             orderedQueue.Enqueue((row, i), row);
                         }
                     }
@@ -211,7 +211,7 @@ namespace Domain
                         string? nextLine = await readers[fileIndex].ReadLineAsync();
                         if (nextLine != null)
                         {
-                            RowEntity nextRow = RowEntity.GetRowFromLine(nextLine);
+                            RowValueObject nextRow = RowValueObject.GetRowFromLine(nextLine);
                             orderedQueue.Enqueue((nextRow, fileIndex), nextRow);
                         }
                     }
@@ -228,10 +228,10 @@ namespace Domain
             _logger.LogInformation($"Completed merging of chunks. Result saved to {outputPath}");
         }
 
-        private static async Task WriteChunkToFileAsync(IEnumerable<RowEntity> chunk, string filePath)
+        private static async Task WriteChunkToFileAsync(IEnumerable<RowValueObject> chunk, string filePath)
         {
             using var writer = new StreamWriter(filePath, append: false, Encoding.UTF8, StreamBufferSize);
-            foreach (RowEntity row in chunk)
+            foreach (RowValueObject row in chunk)
             {
                 await writer.WriteLineAsync(row.ToString());
             }

@@ -1,6 +1,6 @@
 ﻿namespace Domain
 {
-    public readonly struct RowEntity(long number, string text) : IComparable<RowEntity>
+    public readonly struct RowValueObject(long number, string text) : IComparable<RowValueObject>
     {
         public long Number { get; } = number;
 
@@ -8,7 +8,7 @@
 
         private const short MinRowMemory = 64;
 
-        public int CompareTo(RowEntity other)
+        public int CompareTo(RowValueObject other)
         {
             int comparisonResult = string.Compare(Text, other.Text, StringComparison.Ordinal); // compare by string part (alphabetically)
 
@@ -22,14 +22,14 @@
 
         public override string ToString() => $"{Number}{FileGeneratingService.FileRowSeparator}{Text}";
 
-        public static RowEntity GetRowFromLine(string line)
+        public static RowValueObject GetRowFromLine(string line)
         {
             const string separatorValue = FileGeneratingService.FileRowSeparator;
             int separatorIndex = line.IndexOf(separatorValue);
 
             if (separatorIndex == -1)
             {
-                return new RowEntity(0, line); // to handle rows without correct separator
+                return new RowValueObject(0, line); // to handle rows without correct separator
             }
 
             ReadOnlySpan<char> numSpan = line.AsSpan(0, separatorIndex);
@@ -39,7 +39,7 @@
             bool isWithText = textIndex < line.Length;
             string text = isWithText ? line[textIndex..] : string.Empty;
 
-            return new RowEntity(number, text);
+            return new RowValueObject(number, text);
         }
 
         public static int GetRowBytes(int rowTextLength)

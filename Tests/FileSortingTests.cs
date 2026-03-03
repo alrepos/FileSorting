@@ -6,12 +6,12 @@ namespace Tests
     public class FileSortingTests
     {
         [Fact]
-        public void RowEntity_ComparisonTest()
+        public void RowValueObject_ComparisonTest()
         {
             // Arrange
-            var firstApple = new RowEntity(1, "Apple");
-            var secondApple = new RowEntity(415, "Apple");
-            var firstBanana = new RowEntity(2, "Banana is yellow");
+            var firstApple = new RowValueObject(1, "Apple");
+            var secondApple = new RowValueObject(415, "Apple");
+            var firstBanana = new RowValueObject(2, "Banana is yellow");
 
             // Act
             int appleToApple = firstApple.CompareTo(secondApple);
